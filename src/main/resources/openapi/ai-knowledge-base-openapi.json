@@ -1,0 +1,213 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AI Knowledge Base Chat API",
+    "version": "1.8.0",
+    "description": "Standalone authenticated multi-turn OpenAI chat service. Handled errors keep HTTP 200 and use a globally unique three-digit ApiResponse.code."
+  },
+  "servers": [{"url": "/"}],
+  "security": [{"bearerAuth": []}],
+  "tags": [
+    {"name": "Authentication"},
+    {"name": "User Admin"},
+    {"name": "Quota"},
+    {"name": "Chat Sessions"},
+    {"name": "Chat Stream"},
+    {"name": "Admission Admin"}
+  ],
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Authentication"], "security": [], "summary": "Register a username",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Credentials"}}}},
+        "responses": {"200": {"description": "Registered", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UserResponse"}}}}}
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Authentication"], "security": [], "summary": "Login and invalidate all older tokens",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Credentials"}}}},
+        "responses": {"200": {"description": "Tokens", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TokenResponseEnvelope"}}}}}
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "tags": ["Authentication"], "security": [], "summary": "Rotate refresh token",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["refreshToken"], "properties": {"refreshToken": {"type": "string"}}}}}},
+        "responses": {"200": {"description": "Rotated tokens"}}
+      }
+    },
+    "/api/auth/logout": {"post": {"tags": ["Authentication"], "summary": "Invalidate all tokens for the account", "responses": {"200": {"description": "Logged out"}}}},
+    "/api/admin/users/list": {
+      "post": {
+        "tags": ["User Admin"], "summary": "Page through users with an optional fuzzy username filter",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminUserPageRequest"}}}
+        },
+        "responses": {
+          "200": {"description": "User page", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminUserPageResponse"}}}}
+        }
+      }
+    },
+    "/api/admin/users/{id}": {
+      "get": {
+        "tags": ["User Admin"], "summary": "Get a user account",
+        "parameters": [{"$ref": "#/components/parameters/Id"}],
+        "responses": {
+          "200": {"description": "User account or error envelope (code 404)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminUserResponse"}}}}
+        }
+      }
+    },
+    "/api/admin/users/status": {
+      "put": {
+        "tags": ["User Admin"], "summary": "Update a user account status",
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminUserStatusRequest"}}}
+        },
+        "responses": {
+          "200": {"description": "Status updated or error envelope (code 400/404)"}
+        }
+      }
+    },
+    "/api/quota/get": {"get": {"tags": ["Quota"], "summary": "Get remaining quota", "responses": {"200": {"description": "Quota"}}}},
+    "/api/chat/sessions/create": {
+      "post": {"tags": ["Chat Sessions"], "summary": "Create a session with title 新对话", "responses": {"200": {"description": "Created"}}}
+    },
+    "/api/chat/sessions/list": {
+      "get": {
+        "tags": ["Chat Sessions"], "summary": "List all sessions",
+        "responses": {"200": {"description": "All sessions for the current user"}}
+      }
+    },
+    "/api/chat/sessions/{sessionId}": {
+      "delete": {
+        "tags": ["Chat Sessions"], "summary": "Soft-delete a session and its messages",
+        "parameters": [{"$ref": "#/components/parameters/SessionId"}], "responses": {"200": {"description": "Deleted or error envelope (code 409)"}}
+      }
+    },
+    "/api/chat/sessions/{sessionId}/messages": {
+      "get": {
+        "tags": ["Chat Sessions"], "summary": "Page through complete MySQL history",
+        "parameters": [{"$ref": "#/components/parameters/SessionId"}, {"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}}, {"name": "size", "in": "query", "schema": {"type": "integer", "default": 50, "maximum": 100}}],
+        "responses": {"200": {"description": "Message page"}}
+      }
+    },
+    "/api/chat/sessions/stream": {
+      "post": {
+        "tags": ["Chat Stream"], "summary": "Start a real incremental SSE response",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["sessionId", "message"], "properties": {"sessionId": {"type": "string", "pattern": "^[0-9]+$"}, "message": {"type": "string", "maxLength": 256}}}}}},
+        "responses": {"200": {"description": "After authentication and JSON binding, admission rejection or failure returns exactly one Failed SSE event with a non-null requestId. Security and request-binding failures that occur before the controller use the JSON error envelope.", "content": {"text/event-stream": {"schema": {"$ref": "#/components/schemas/ChatSseEvent"}}, "application/json": {"schema": {"$ref": "#/components/schemas/ApiErrorResponse"}}}}}
+      }
+    },
+    "/api/chat/requests/{requestId}/cancel": {
+      "post": {
+        "tags": ["Chat Stream"], "summary": "Cancel a queued or generating request",
+        "parameters": [{"name": "requestId", "in": "path", "required": true, "schema": {"type": "string", "pattern": "^[0-9]+$"}}],
+        "responses": {"200": {"description": "Cancelled or error envelope (code 405)"}}
+      }
+    },
+    "/api/admin/request-admission/meaningless-phrases/create": {
+      "post": {"tags": ["Admission Admin"], "summary": "Create phrase", "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PhraseSave"}}}}, "responses": {"200": {"description": "Created"}}}
+    },
+    "/api/admin/request-admission/meaningless-phrases/list": {
+      "get": {"tags": ["Admission Admin"], "summary": "Query phrases", "responses": {"200": {"description": "Phrase page"}}}
+    },
+    "/api/admin/request-admission/meaningless-phrases/{id}": {
+      "get": {"tags": ["Admission Admin"], "summary": "Get phrase", "parameters": [{"$ref": "#/components/parameters/Id"}], "responses": {"200": {"description": "Phrase"}}},
+      "put": {"tags": ["Admission Admin"], "summary": "Update phrase", "parameters": [{"$ref": "#/components/parameters/Id"}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PhraseSave"}}}}, "responses": {"200": {"description": "Updated"}}}
+    },
+    "/api/admin/request-admission/meaningless-phrases/{id}/status": {
+      "put": {"tags": ["Admission Admin"], "summary": "Enable or disable phrase", "parameters": [{"$ref": "#/components/parameters/Id"}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["enabled"], "properties": {"enabled": {"type": "boolean"}}}}}}, "responses": {"200": {"description": "Updated"}}}
+    }
+  },
+  "components": {
+    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},
+    "parameters": {
+      "SessionId": {"name": "sessionId", "in": "path", "required": true, "schema": {"type": "string", "pattern": "^[0-9]+$"}},
+      "Id": {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "pattern": "^[0-9]+$"}}
+    },
+    "schemas": {
+      "Credentials": {"type": "object", "required": ["username", "password"], "properties": {"username": {"type": "string", "minLength": 4, "maxLength": 32}, "password": {"type": "string", "format": "password", "minLength": 8, "maxLength": 72}}},
+      "ApiErrorResponse": {"type": "object", "required": ["code", "message", "data"], "properties": {"code": {"type": "integer", "minimum": 100, "maximum": 999, "description": "Globally unique three-digit application error code"}, "message": {"type": "string"}, "data": {"type": "null"}, "timestamp": {"type": "string", "format": "date-time"}}},
+      "UserResponse": {"type": "object", "properties": {"code": {"type": "integer", "minimum": 100, "maximum": 999}, "message": {"type": "string"}, "data": {"type": "object", "properties": {"id": {"type": "string", "pattern": "^[0-9]+$"}, "username": {"type": "string"}, "role": {"type": "string"}}}}},
+      "TokenResponseEnvelope": {"type": "object", "properties": {"code": {"type": "integer", "minimum": 100, "maximum": 999}, "message": {"type": "string"}, "data": {"type": "object", "properties": {"tokenType": {"type": "string"}, "accessToken": {"type": "string"}, "refreshToken": {"type": "string"}}}}},
+      "AdminUserStatusRequest": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[0-9]+$"},
+          "status": {"type": "string", "enum": ["ENABLED", "DISABLED"]}
+        }
+      },
+      "AdminUserPageRequest": {
+        "type": "object",
+        "properties": {
+          "username": {"type": ["string", "null"]},
+          "page": {"type": ["string", "null"], "pattern": "^[1-9][0-9]*$", "default": "1"},
+          "size": {"type": ["string", "null"], "pattern": "^(?:[1-9]|[1-9][0-9]|100)$", "default": "20"}
+        }
+      },
+      "AdminUserPageResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer", "minimum": 100, "maximum": 999},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "required": ["page", "size", "total", "items"],
+            "properties": {
+              "page": {"type": "string", "pattern": "^[0-9]+$"},
+              "size": {"type": "string", "pattern": "^[0-9]+$"},
+              "total": {"type": "string", "pattern": "^[0-9]+$"},
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "username", "role", "status", "createTime", "updateTime"],
+                  "properties": {
+                    "id": {"type": "string", "pattern": "^[0-9]+$"},
+                    "username": {"type": "string"},
+                    "role": {"type": "string", "enum": ["USER", "ADMIN"]},
+                    "status": {"type": "string", "enum": ["ENABLED", "DISABLED"]},
+                    "createTime": {"type": "string", "format": "date-time"},
+                    "updateTime": {"type": "string", "format": "date-time"}
+                  }
+                }
+              }
+            }
+          },
+          "timestamp": {"type": "string", "format": "date-time"}
+        }
+      },
+      "AdminUserResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer", "minimum": 100, "maximum": 999},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "required": ["username", "role", "status", "createTime", "updateTime"],
+            "properties": {
+              "username": {"type": "string"},
+              "role": {"type": "string", "enum": ["USER", "ADMIN"]},
+              "status": {"type": "string", "enum": ["ENABLED", "DISABLED"]},
+              "createTime": {"type": "string", "format": "date-time"},
+              "updateTime": {"type": "string", "format": "date-time"}
+            }
+          },
+          "timestamp": {"type": "string", "format": "date-time"}
+        }
+      },
+      "PhraseSave": {"type": "object", "required": ["phrase"], "properties": {"phrase": {"type": "string", "maxLength": 256}, "category": {"type": "string", "maxLength": 64}, "priority": {"type": "integer"}, "remark": {"type": "string", "maxLength": 500}}},
+      "ChatSseEvent": {"type": "object", "required": ["requestId", "sessionId", "event", "sequence", "messageStatus", "remainingQuota", "timestamp"], "properties": {"requestId": {"type": "string", "pattern": "^[0-9]+$", "description": "Preallocated before business admission and present on every non-heartbeat event"}, "sessionId": {"type": "string", "pattern": "^[0-9]+$"}, "event": {"type": "string", "enum": ["Queued", "Generating", "Delta", "Generated", "Failed", "Cancelled"]}, "sequence": {"type": "string", "pattern": "^[0-9]+$"}, "delta": {"type": ["string", "null"]}, "assistantMessageId": {"type": ["string", "null"], "pattern": "^[0-9]+$", "description": "Null when admission fails before messages are persisted"}, "messageStatus": {"type": "string"}, "remainingQuota": {"type": "integer"}, "closeReason": {"type": ["string", "null"]}, "errorCode": {"type": ["string", "null"]}, "errorMessage": {"type": ["string", "null"]}, "timestamp": {"type": "string", "format": "date-time"}}}
+    }
+  }
+}
+
+
+
+
+
+
