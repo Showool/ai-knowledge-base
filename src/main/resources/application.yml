@@ -64,7 +64,7 @@ spring:
           key-prefix: "akb:chat:memory:"
           index-name: akb-chat-memory-idx
           initialize-schema: true
-          max-messages-per-conversation: 5
+          max-messages-per-conversation: 6
           metadata-fields:
             - name: messageType
               type: tag
@@ -98,7 +98,7 @@ app:
     refresh-token-ttl: 30d
   ai:
     system-prompt: 你是一个有帮助、准确且简洁的 AI 助手。
-    memory-window-size: 5
+    memory-window-size: 6
     model: qwen3.8-max
   chat:
     message-max-length: 256
