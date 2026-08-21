@@ -4,7 +4,7 @@
 
 本项目已经从灯效生成服务迁移为独立的通用多轮文本对话服务。本文件记录当前实现基线、不可破坏的业务契约和后续演进边界；代码、接口、数据库、配置或目录架构发生变化时，必须同步更新本文件与 `AGENTS.md`。
 
-项目固定使用 Java 21、Spring Boot 4、Spring AI 2.0、OpenAI、MySQL、Redis Stack 和 MyBatis-Plus，当前按单实例部署设计。
+项目固定使用 Java 21、Spring Boot 4、Spring AI 2.0、OpenAI、MySQL、Redis Stack、MyBatis-Plus 和 MapStruct，当前按单实例部署设计。
 
 ## 2. 范围与非目标
 
@@ -37,6 +37,7 @@
 com.jason.ai.knowledgebase
 ├── controller
 ├── service
+│   ├── converter
 │   └── sse
 ├── repository
 │   ├── mapper
@@ -60,7 +61,7 @@ com.jason.ai.knowledgebase
 职责约束：
 
 - `controller` 只负责协议适配、参数接收和响应封装，只能使用接口请求/响应模型、Service、Security 和 Common，不得直接依赖 Repository、实体或内部模型。
-- `service` 负责业务规则、事务边界和跨资源编排。SSE 队列、连接、生成和终态生命周期集中在 `service.sse`；只在该包使用的任务和值对象保持包可见。
+- `service` 负责业务规则、事务边界和跨资源编排。确定性的实体/查询投影到响应 DTO 映射集中在 `service.converter`；SSE 队列、连接、生成和终态生命周期集中在 `service.sse`，只在该包使用的任务和值对象保持包可见。
 - `repository.mapper` 收敛 MySQL 访问，`repository.cache` 收敛 Redis 状态和缓存访问，`repository.projection` 保存查询投影。Repository 不得反向依赖 Controller、Service 或接口 DTO。
 - `model.entity` 只保存数据库实体；`model.request` 和 `model.response` 分别保存入参与出参；`model.enums` 保存共享枚举；`model.event` 保存应用事件；`model.internal` 保存不对外暴露的跨服务内部数据。
 - 请求和响应模型不得相互依赖。不得重新建立同时包含入参与出参的 `AuthDtos`、`ChatDtos` 等混合容器；`ChatSseEvent` 作为独立响应模型保留。
@@ -73,6 +74,8 @@ com.jason.ai.knowledgebase
 - 所有业务接口统一使用 `/api` 前缀。
 - Controller 的每个接口方法都在方法级映射注解中声明非空路径，不直接映射到类级根路径。
 - 普通接口统一返回 `ApiResponse`；成功响应使用 `success` 工厂方法，成功码为 200。
+- 除 SSE 流式接口及其内部调用链外，Controller 对外调用的 Service 方法只要有返回值，就直接返回 `ApiResponse`，Controller 不再重复包装。
+- 分页 Service 先使用 `IPage.convert` 完成实体到响应 DTO 的转换，再调用 `ApiResponse.page(IPage)`；该方法只提取 `items` 和 `total` 组成 `PageResult`，不返回请求中的页码和每页数量。
 - `ErrorCode` 使用全局唯一的三位业务码。全局异常处理器和 Spring Security 捕获的异常保持 HTTP 200，客户端只根据 `ApiResponse.code` 判断结果。
 - 对外 Controller 数值参数、API DTO、`PageResult` 和 `ChatSseEvent` 的 64 位整数统一使用 `Long`，Jackson 将 Long 序列化为字符串，避免 JavaScript 精度损失。
 - OpenAPI 契约固定为 `src/main/resources/openapi/ai-knowledge-base-openapi.json`，由自定义 Controller 提供；接口、DTO 或 SSE 事件变化时必须同步更新。
@@ -282,7 +285,9 @@ meaningless_phrase
 ## 12. 代码规范
 
 - 使用构造器注入，不使用字段注入。
-- Controller 只做协议适配；事务和业务规则放 Service；SQL 和 Redis 数据访问放 Repository。
+- MapStruct 转换器统一使用 `service.converter.MapStructConfiguration`，以 Spring 组件和构造器方式注入，并对未映射目标字段直接编译失败。转换器只承担无副作用的字段映射；校验、规范化、默认业务状态、ID/Token 生成、状态机、资源访问、响应包装和分页边界保留在 Service 或既有工厂中，不使用 MapStruct `expression` 隐藏业务逻辑。
+- Maven 编译必须同时配置 MapStruct Processor、Lombok 与 `lombok-mapstruct-binding`；本地 IDE 从 Maven 导入注解处理器路径并开启 annotation processing，避免 Lombok getter 尚未生成时 MapStruct 报出错误元素。
+- Controller 只做协议适配，全局异常到 HTTP 响应的映射统一放在 `controller.GlobalExceptionHandler`；事务和业务规则放 Service；SQL 和 Redis 数据访问放 Repository。
 - 公共方法和业务逻辑复杂的私有方法使用中文 JavaDoc，说明用途、参数、返回值和可能抛出的异常；简单 getter、构造器和一眼可见的私有辅助方法不强制注释。
 - 配置按职责拆为 `AuthProperties`、`AdmissionProperties`、`ChatInputProperties`、`AiProperties`、`ChatProperties`、`SnowflakeProperties` 和 `OpenApiProperties`，同时保持现有 YAML Key。
 - 共享枚举统一放在 `model.enums`，通用错误码放在 `common.exception`；不得散落魔法数字、魔法字符串或环境判断。
@@ -326,6 +331,7 @@ mvn clean verify
 
 - 原 `account`、`chat`、`admission` 的 Controller 汇总到 `controller`。
 - 业务服务汇总到 `service`，SSE 生命周期保留独立的 `service.sse` 子包。
+- 实体和查询投影到响应 DTO 的确定性转换集中到 `service.converter`，使用 MapStruct 生成实现；MyBatis 数据访问接口继续使用 `repository.mapper`，两类 Mapper 不混用。
 - MySQL Mapper、Redis Store/Cache 和查询投影统一进入 `repository` 的对应子包。
 - 实体、请求、响应、枚举、事件和内部数据分别进入 `model` 子包。
 - 原业务域 Config 与基础设施配置统一进入 `config`，认证授权统一进入 `security`。

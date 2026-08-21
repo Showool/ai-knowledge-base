@@ -7,7 +7,7 @@ public final class AdminResponses {
     private AdminResponses() {
     }
 
-    public record UserListItem(String id, String username, String role, String status,
+    public record UserListItem(Long id, String username, String role, String status,
             Instant createTime, Instant updateTime) {
     }
 

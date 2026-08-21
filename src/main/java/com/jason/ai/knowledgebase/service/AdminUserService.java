@@ -5,16 +5,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
+import com.jason.ai.knowledgebase.model.response.PageResult;
 import com.jason.ai.knowledgebase.model.response.AdminResponses.UserListItem;
 import com.jason.ai.knowledgebase.model.request.AdminRequests.UserPageRequest;
 import com.jason.ai.knowledgebase.model.response.AdminResponses.UserView;
 import com.jason.ai.knowledgebase.model.entity.SysUser;
 import com.jason.ai.knowledgebase.model.enums.UserStatus;
 import com.jason.ai.knowledgebase.repository.mapper.SysUserMapper;
-import com.jason.ai.knowledgebase.common.api.PageResult;
 import com.jason.ai.knowledgebase.common.exception.AppException;
 import com.jason.ai.knowledgebase.common.exception.ErrorCode;
 import com.jason.ai.knowledgebase.common.util.PageBounds;
+import com.jason.ai.knowledgebase.service.converter.AdminUserResponseConverter;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,14 +32,15 @@ public class AdminUserService {
 
     private final SysUserMapper userMapper;
     private final AuthService authService;
+    private final AdminUserResponseConverter responseConverter;
 
     /**
      * 按可选用户名查询用户分页。
      *
      * @param request 分页与用户名筛选条件
-     * @return 用户分页
+     * @return 用户分页成功响应
      */
-    public PageResult<UserListItem> list(UserPageRequest request) {
+    public ApiResponse<PageResult<UserListItem>> list(UserPageRequest request) {
         String keyword = request.username() == null ? null : request.username().trim();
         PageBounds bounds = PageBounds.of(request.page(), request.size(), DEFAULT_PAGE_SIZE, MAXIMUM_PAGE_SIZE);
         Page<SysUser> result = userMapper.selectPage(
@@ -46,19 +49,18 @@ public class AdminUserService {
                         .like(keyword != null && !keyword.isBlank(), SysUser::getUsername, keyword)
                         .orderByDesc(SysUser::getCreateTime)
                         .orderByDesc(SysUser::getId));
-        return new PageResult<>(result.getCurrent(), result.getSize(), result.getTotal(),
-                result.getRecords().stream().map(this::listItem).toList());
+        return ApiResponse.page(result.convert(responseConverter::toListItem));
     }
 
     /**
      * 查询指定用户的管理员视图。
      *
      * @param id 用户 ID
-     * @return 不包含敏感字段的用户视图
+     * @return 包含非敏感用户视图的成功响应
      * @throws AppException 用户不存在时抛出
      */
-    public UserView get(long id) {
-        return view(require(id));
+    public ApiResponse<UserView> get(long id) {
+        return ApiResponse.success(responseConverter.toView(require(id)));
     }
 
     /**
@@ -95,13 +97,4 @@ public class AdminUserService {
         return user;
     }
 
-    private UserListItem listItem(SysUser user) {
-        return new UserListItem(String.valueOf(user.getId()), user.getUsername(), user.getRole(), user.getStatus(),
-                user.getCreateTime(), user.getUpdateTime());
-    }
-
-    private UserView view(SysUser user) {
-        return new UserView(user.getUsername(), user.getRole(), user.getStatus(),
-                user.getCreateTime(), user.getUpdateTime());
-    }
 }

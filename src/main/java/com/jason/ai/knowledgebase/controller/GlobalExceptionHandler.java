@@ -1,4 +1,4 @@
-package com.jason.ai.knowledgebase.common.exception;
+package com.jason.ai.knowledgebase.controller;
 
 import java.util.stream.Collectors;
 
@@ -9,7 +9,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.jason.ai.knowledgebase.common.api.ApiResponse;
+import com.jason.ai.knowledgebase.common.exception.AppException;
+import com.jason.ai.knowledgebase.common.exception.ErrorCode;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
 
 import lombok.extern.slf4j.Slf4j;
 

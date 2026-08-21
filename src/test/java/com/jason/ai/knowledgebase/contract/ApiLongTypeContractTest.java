@@ -8,8 +8,6 @@ import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 
-import com.jason.ai.knowledgebase.common.api.ApiResponse;
-import com.jason.ai.knowledgebase.common.api.PageResult;
 import com.jason.ai.knowledgebase.controller.AdminUserController;
 import com.jason.ai.knowledgebase.controller.ApiDocumentationController;
 import com.jason.ai.knowledgebase.controller.AuthController;
@@ -22,11 +20,13 @@ import com.jason.ai.knowledgebase.model.request.AuthRequests;
 import com.jason.ai.knowledgebase.model.request.ChatRequests;
 import com.jason.ai.knowledgebase.model.request.PhraseRequests;
 import com.jason.ai.knowledgebase.model.response.AdminResponses;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
 import com.jason.ai.knowledgebase.model.response.AuthResponses;
 import com.jason.ai.knowledgebase.model.response.ChatResponses;
 import com.jason.ai.knowledgebase.model.response.PhraseResponses;
 import com.jason.ai.knowledgebase.model.response.QuotaResponses;
 import com.jason.ai.knowledgebase.model.response.ChatSseEvent;
+import com.jason.ai.knowledgebase.model.response.PageResult;
 
 class ApiLongTypeContractTest {
 
@@ -48,6 +48,13 @@ class ApiLongTypeContractTest {
                 .toList();
 
         assertThat(primitiveRecordComponents).isEmpty();
+    }
+
+    @Test
+    void pageResultOnlyExposesItemsAndTotal() {
+        assertThat(Arrays.stream(PageResult.class.getRecordComponents())
+                .map(component -> component.getName()))
+                .containsExactly("items", "total");
     }
 
     @Test

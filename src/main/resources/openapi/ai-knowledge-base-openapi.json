@@ -156,10 +156,8 @@
           "message": {"type": "string"},
           "data": {
             "type": "object",
-            "required": ["page", "size", "total", "items"],
+            "required": ["items", "total"],
             "properties": {
-              "page": {"type": "string", "pattern": "^[0-9]+$"},
-              "size": {"type": "string", "pattern": "^[0-9]+$"},
               "total": {"type": "string", "pattern": "^[0-9]+$"},
               "items": {
                 "type": "array",

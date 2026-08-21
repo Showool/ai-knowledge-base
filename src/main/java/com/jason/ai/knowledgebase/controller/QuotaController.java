@@ -4,7 +4,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.jason.ai.knowledgebase.common.api.ApiResponse;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
 import com.jason.ai.knowledgebase.model.response.QuotaResponses.QuotaView;
 import com.jason.ai.knowledgebase.security.SecurityUtils;
 import com.jason.ai.knowledgebase.service.QuotaService;
@@ -25,6 +25,6 @@ public class QuotaController {
      */
     @GetMapping("/get")
     public ApiResponse<QuotaView> get() {
-        return ApiResponse.success(new QuotaView(service.available(SecurityUtils.currentUserId())));
+        return service.available(SecurityUtils.currentUserId());
     }
 }

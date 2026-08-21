@@ -9,8 +9,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.jason.ai.knowledgebase.common.api.ApiResponse;
-import com.jason.ai.knowledgebase.common.api.PageResult;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
+import com.jason.ai.knowledgebase.model.response.PageResult;
 import com.jason.ai.knowledgebase.model.response.PhraseResponses.PhraseView;
 import com.jason.ai.knowledgebase.model.request.PhraseRequests.SaveRequest;
 import com.jason.ai.knowledgebase.model.request.PhraseRequests.StatusRequest;
@@ -35,7 +35,7 @@ public class MeaninglessPhraseAdminController {
      */
     @PostMapping("/create")
     public ApiResponse<Long> create(@Valid @RequestBody SaveRequest request) {
-        return ApiResponse.success(service.create(request));
+        return service.create(request);
     }
 
     /**
@@ -72,7 +72,7 @@ public class MeaninglessPhraseAdminController {
      */
     @GetMapping("/{id}")
     public ApiResponse<PhraseView> get(@PathVariable Long id) {
-        return ApiResponse.success(service.get(id));
+        return service.get(id);
     }
 
     /**
@@ -89,6 +89,6 @@ public class MeaninglessPhraseAdminController {
     public ApiResponse<PageResult<PhraseView>> list(@RequestParam(required = false) String phrase,
             @RequestParam(required = false) String category, @RequestParam(required = false) Boolean enabled,
             @RequestParam(defaultValue = "1") Long page, @RequestParam(defaultValue = "20") Long size) {
-        return ApiResponse.success(service.list(phrase, category, enabled, page, size));
+        return service.list(phrase, category, enabled, page, size);
     }
 }

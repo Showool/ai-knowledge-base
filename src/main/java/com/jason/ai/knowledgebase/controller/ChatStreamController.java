@@ -8,9 +8,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.jason.ai.knowledgebase.common.api.ApiResponse;
 import com.jason.ai.knowledgebase.model.request.ChatRequests.StreamRequest;
 import com.jason.ai.knowledgebase.security.SecurityUtils;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
 import com.jason.ai.knowledgebase.model.response.ChatSseEvent;
 import com.jason.ai.knowledgebase.service.sse.ChatSseOrchestrator;
 

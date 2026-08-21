@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.jason.ai.knowledgebase.repository.cache.AuthSessionStore;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
 import com.jason.ai.knowledgebase.model.response.AuthResponses.TokenResponse;
 import com.jason.ai.knowledgebase.model.response.AuthResponses.UserView;
 import com.jason.ai.knowledgebase.model.entity.AuthSession;
@@ -31,6 +32,7 @@ import com.jason.ai.knowledgebase.common.exception.AppException;
 import com.jason.ai.knowledgebase.common.exception.ErrorCode;
 import com.jason.ai.knowledgebase.config.AuthProperties;
 import com.jason.ai.knowledgebase.common.util.SnowflakeIdGenerator;
+import com.jason.ai.knowledgebase.service.converter.AuthResponseConverter;
 
 import lombok.RequiredArgsConstructor;
 
@@ -55,17 +57,18 @@ public class AuthService {
     private final AuthSessionStore sessionStore;
     private final SnowflakeIdGenerator idGenerator;
     private final AuthProperties properties;
+    private final AuthResponseConverter responseConverter;
 
     /**
      * 注册账号并创建初始额度记录。
      *
      * @param rawUsername 未规范化的用户名
      * @param password 原始密码
-     * @return 新账号的安全视图
+     * @return 包含新账号安全视图的成功响应
      * @throws AppException 用户名或密码不合法、用户名已存在时抛出
      */
     @Transactional(rollbackFor = Exception.class)
-    public UserView register(String rawUsername, String password) {
+    public ApiResponse<UserView> register(String rawUsername, String password) {
         String username = normalizeUsername(rawUsername);
         validatePassword(password);
         long userId = idGenerator.nextId();
@@ -87,7 +90,7 @@ public class AuthService {
         } catch (DuplicateKeyException exception) {
             throw new AppException(ErrorCode.USERNAME_EXISTS);
         }
-        return toView(user);
+        return ApiResponse.success(responseConverter.toUserView(user));
     }
 
     /**
@@ -95,11 +98,11 @@ public class AuthService {
      *
      * @param rawUsername 未规范化的用户名
      * @param password 原始密码
-     * @return 新的 Access Token 和 Refresh Token
+     * @return 包含新 Access Token 和 Refresh Token 的成功响应
      * @throws AppException 凭据错误或账号不可用时抛出
      */
     @Transactional(rollbackFor = Exception.class)
-    public TokenResponse login(String rawUsername, String password) {
+    public ApiResponse<TokenResponse> login(String rawUsername, String password) {
         String username = normalizeUsername(rawUsername);
         SysUser user = userMapper.findByUsername(username);
         if (user == null || !UserStatus.ENABLED.name().equals(user.getStatus())
@@ -120,18 +123,18 @@ public class AuthService {
         session.setRevoked(false);
         sessionMapper.insert(session);
         sessionStore.set(user.getId(), authSessionId);
-        return tokens(user, authSessionId, refreshToken);
+        return ApiResponse.success(tokens(user, authSessionId, refreshToken));
     }
 
     /**
      * 原子轮换 Refresh Token，并签发新的 Access Token。
      *
      * @param refreshToken 当前 Refresh Token
-     * @return 轮换后的 Token
+     * @return 包含轮换后 Token 的成功响应
      * @throws AppException Token 失效、过期或账号不可用时抛出
      */
     @Transactional(rollbackFor = Exception.class)
-    public TokenResponse refresh(String refreshToken) {
+    public ApiResponse<TokenResponse> refresh(String refreshToken) {
         String oldHash = hash(refreshToken);
         AuthSession session = sessionMapper.findActiveByRefreshHash(oldHash);
         Instant now = Instant.now();
@@ -154,7 +157,7 @@ public class AuthService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
         sessionStore.set(user.getId(), session.getId());
-        return tokens(user, session.getId(), newRefresh);
+        return ApiResponse.success(tokens(user, session.getId(), newRefresh));
     }
 
     /**
@@ -174,12 +177,9 @@ public class AuthService {
                 properties.getAccessTokenTtl().toSeconds(),
                 refreshToken,
                 properties.getRefreshTokenTtl().toSeconds(),
-                toView(user));
+                responseConverter.toUserView(user));
     }
 
-    private UserView toView(SysUser user) {
-        return new UserView(user.getId(), user.getUsername(), user.getRole());
-    }
 
     private String normalizeUsername(String username) {
         String normalized = Normalizer.normalize(username, Normalizer.Form.NFKC).trim();

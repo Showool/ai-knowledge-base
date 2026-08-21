@@ -27,12 +27,14 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jason.ai.knowledgebase.common.exception.AppException;
 import com.jason.ai.knowledgebase.common.exception.ErrorCode;
-import com.jason.ai.knowledgebase.common.api.PageResult;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
+import com.jason.ai.knowledgebase.model.response.PageResult;
 import com.jason.ai.knowledgebase.model.response.AdminResponses.UserListItem;
 import com.jason.ai.knowledgebase.model.request.AdminRequests.UserPageRequest;
 import com.jason.ai.knowledgebase.model.response.AdminResponses.UserView;
 import com.jason.ai.knowledgebase.model.entity.SysUser;
 import com.jason.ai.knowledgebase.repository.mapper.SysUserMapper;
+import com.jason.ai.knowledgebase.service.converter.AdminUserResponseConverter;
 
 @ExtendWith(MockitoExtension.class)
 class AdminUserServiceTest {
@@ -48,6 +50,8 @@ class AdminUserServiceTest {
     private SysUserMapper userMapper;
     @Mock
     private AuthService authService;
+    @Mock
+    private AdminUserResponseConverter responseConverter;
     @InjectMocks
     private AdminUserService service;
 
@@ -57,14 +61,15 @@ class AdminUserServiceTest {
         Page<SysUser> mapperResult = new Page<>(2, 5, 11);
         mapperResult.setRecords(List.of(user("ENABLED")));
         when(userMapper.selectPage(any(Page.class), any())).thenReturn(mapperResult);
+        UserListItem item = new UserListItem(42L, "alice", "USER", "ENABLED",
+                Instant.parse("2026-08-18T01:00:00Z"), Instant.parse("2026-08-18T02:00:00Z"));
+        when(responseConverter.toListItem(any(SysUser.class))).thenReturn(item);
 
-        PageResult<UserListItem> result = service.list(new UserPageRequest("  ali  ", 2L, 5L));
+        ApiResponse<PageResult<UserListItem>> response = service.list(new UserPageRequest("  ali  ", 2L, 5L));
 
-        assertThat(result.page()).isEqualTo(2);
-        assertThat(result.size()).isEqualTo(5);
-        assertThat(result.total()).isEqualTo(11);
-        assertThat(result.items()).containsExactly(new UserListItem("42", "alice", "USER", "ENABLED",
-                Instant.parse("2026-08-18T01:00:00Z"), Instant.parse("2026-08-18T02:00:00Z")));
+        assertThat(response.data()).isNotNull();
+        assertThat(response.data().total()).isEqualTo(11);
+        assertThat(response.data().items()).containsExactly(item);
 
         ArgumentCaptor<LambdaQueryWrapper<SysUser>> queryCaptor =
                 ArgumentCaptor.forClass((Class) LambdaQueryWrapper.class);
@@ -107,12 +112,14 @@ class AdminUserServiceTest {
     @Test
     void getReturnsOnlyAdministrativeUserFields() {
         SysUser user = user("ENABLED");
+        UserView view = new UserView("alice", "USER", "ENABLED",
+                Instant.parse("2026-08-18T01:00:00Z"), Instant.parse("2026-08-18T02:00:00Z"));
         when(userMapper.selectById(USER_ID)).thenReturn(user);
+        when(responseConverter.toView(user)).thenReturn(view);
 
-        UserView result = service.get(USER_ID);
+        ApiResponse<UserView> response = service.get(USER_ID);
 
-        assertThat(result).isEqualTo(new UserView("alice", "USER", "ENABLED",
-                Instant.parse("2026-08-18T01:00:00Z"), Instant.parse("2026-08-18T02:00:00Z")));
+        assertThat(response.data()).isEqualTo(view);
     }
 
     @Test

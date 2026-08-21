@@ -3,10 +3,14 @@ package com.jason.ai.knowledgebase.common.api;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
+import java.util.List;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jason.ai.knowledgebase.common.exception.AppException;
 import com.jason.ai.knowledgebase.common.exception.ErrorCode;
-import com.jason.ai.knowledgebase.common.exception.GlobalExceptionHandler;
+import com.jason.ai.knowledgebase.controller.GlobalExceptionHandler;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
+import com.jason.ai.knowledgebase.model.response.PageResult;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
@@ -36,6 +40,19 @@ class ApiResponseContractTest {
                 .returns("OK", ApiResponse::message)
                 .returns("payload", ApiResponse::data);
         assertThat(ApiResponse.success().code()).isEqualTo(200);
+    }
+
+    @Test
+    void pageFactoryExtractsItemsAndTotal() {
+        Page<String> page = new Page<>(2, 5, 11);
+        page.setRecords(List.of("first", "second"));
+
+        ApiResponse<PageResult<String>> response = ApiResponse.page(page);
+
+        assertThat(response.code()).isEqualTo(200);
+        assertThat(response.data()).isNotNull();
+        assertThat(response.data().items()).containsExactly("first", "second");
+        assertThat(response.data().total()).isEqualTo(11);
     }
 
     @Test

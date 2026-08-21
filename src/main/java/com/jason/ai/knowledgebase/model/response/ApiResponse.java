@@ -1,6 +1,8 @@
-package com.jason.ai.knowledgebase.common.api;
+package com.jason.ai.knowledgebase.model.response;
 
 import java.time.Instant;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 /** 非 SSE 接口的稳定响应信封。 */
 public record ApiResponse<T>(int code, String message, T data, Instant timestamp) {
@@ -17,6 +19,17 @@ public record ApiResponse<T>(int code, String message, T data, Instant timestamp
      */
     public static <T> ApiResponse<T> success(T data) {
         return new ApiResponse<>(SUCCESS_CODE, SUCCESS_MESSAGE, data, Instant.now());
+    }
+
+    /**
+     * 将 MyBatis-Plus 分页结果封装为只包含数据项和总数的成功响应。
+     *
+     * @param page 分页查询结果
+     * @param <T> 数据项类型
+     * @return 分页成功响应
+     */
+    public static <T> ApiResponse<PageResult<T>> page(IPage<T> page) {
+        return success(new PageResult<>(page.getRecords(), page.getTotal()));
     }
 
     /**

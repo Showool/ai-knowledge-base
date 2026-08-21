@@ -21,7 +21,7 @@ class ConfigurationContractTest {
         assertThat(environment.getProperty("spring.ai.openai.chat.timeout")).isEqualTo("150s");
         assertThat(environment.getProperty("app.chat.message-max-length")).isEqualTo("256");
         assertThat(environment.getProperty("spring.ai.chat.memory.redis.max-messages-per-conversation"))
-                .isEqualTo("5");
+                .isEqualTo("6");
         assertThat(environment.containsProperty("spring.data.redis.host")).isTrue();
         assertThat(environment.containsProperty("spring.data.redis.port")).isTrue();
         assertThat(environment.containsProperty("spring.data.redis.password")).isTrue();

@@ -49,8 +49,13 @@ class RepositoryContractTest {
                 .isEqualTo("#/components/schemas/AdminUserStatusRequest");
         assertThat(paths.has("/api/admin/users/{id}/enable")).isFalse();
         assertThat(paths.has("/api/admin/users/{id}/disable")).isFalse();
-        JsonNode userListItemProperties = document.path("components").path("schemas")
-                .path("AdminUserPageResponse").path("properties").path("data").path("properties")
+        JsonNode userPageData = document.path("components").path("schemas")
+                .path("AdminUserPageResponse").path("properties").path("data");
+        assertThat(userPageData.path("required"))
+                .isEqualTo(objectMapper.readTree("[\"items\",\"total\"]"));
+        assertThat(userPageData.path("properties").fieldNames()).toIterable()
+                .containsExactlyInAnyOrder("items", "total");
+        JsonNode userListItemProperties = userPageData.path("properties")
                 .path("items").path("items").path("properties");
         assertThat(userListItemProperties.fieldNames()).toIterable()
                 .containsExactlyInAnyOrder("id", "username", "role", "status", "createTime", "updateTime");

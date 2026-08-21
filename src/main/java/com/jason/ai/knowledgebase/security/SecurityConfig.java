@@ -15,10 +15,10 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
-import com.jason.ai.knowledgebase.common.api.ApiResponse;
 import com.jason.ai.knowledgebase.common.exception.ErrorCode;
 import com.jason.ai.knowledgebase.config.OpenApiProperties;
 import com.jason.ai.knowledgebase.model.enums.UserRole;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
 
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;

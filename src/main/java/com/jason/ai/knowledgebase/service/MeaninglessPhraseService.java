@@ -7,16 +7,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
+import com.jason.ai.knowledgebase.model.response.PageResult;
 import com.jason.ai.knowledgebase.model.response.PhraseResponses.PhraseView;
 import com.jason.ai.knowledgebase.model.request.PhraseRequests.SaveRequest;
 import com.jason.ai.knowledgebase.model.entity.MeaninglessPhrase;
 import com.jason.ai.knowledgebase.model.event.MeaninglessPhraseChangedEvent;
 import com.jason.ai.knowledgebase.repository.mapper.MeaninglessPhraseMapper;
-import com.jason.ai.knowledgebase.common.api.PageResult;
 import com.jason.ai.knowledgebase.common.exception.AppException;
 import com.jason.ai.knowledgebase.common.exception.ErrorCode;
 import com.jason.ai.knowledgebase.common.util.PageBounds;
 import com.jason.ai.knowledgebase.common.util.SnowflakeIdGenerator;
+import com.jason.ai.knowledgebase.service.converter.PhraseResponseConverter;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,16 +33,17 @@ public class MeaninglessPhraseService {
     private final RequestInputNormalizer normalizer;
     private final SnowflakeIdGenerator idGenerator;
     private final ApplicationEventPublisher publisher;
+    private final PhraseResponseConverter responseConverter;
 
     /**
      * 新增并规范化一条无意义短语。
      *
      * @param request 新增参数
-     * @return 新短语 ID
+     * @return 包含新短语 ID 的成功响应
      * @throws AppException 短语为空或重复时抛出
      */
     @Transactional(rollbackFor = Exception.class)
-    public long create(SaveRequest request) {
+    public ApiResponse<Long> create(SaveRequest request) {
         String phrase = normalizedPhrase(request.phrase());
         ensureUnique(phrase);
         MeaninglessPhrase entity = new MeaninglessPhrase();
@@ -54,7 +57,7 @@ public class MeaninglessPhraseService {
             throw new AppException(ErrorCode.CONFLICT, "短语已存在");
         }
         changed();
-        return entity.getId();
+        return ApiResponse.success(entity.getId());
     }
 
     /**
@@ -98,11 +101,11 @@ public class MeaninglessPhraseService {
      * 查询单条短语。
      *
      * @param id 短语 ID
-     * @return 短语视图
+     * @return 包含短语视图的成功响应
      * @throws AppException 短语不存在时抛出
      */
-    public PhraseView get(long id) {
-        return view(require(id));
+    public ApiResponse<PhraseView> get(long id) {
+        return ApiResponse.success(responseConverter.toView(require(id)));
     }
 
     /**
@@ -113,9 +116,9 @@ public class MeaninglessPhraseService {
      * @param enabled 可选启用状态
      * @param page 页码
      * @param size 每页数量
-     * @return 短语分页
+     * @return 短语分页成功响应
      */
-    public PageResult<PhraseView> list(String phrase, String category, Boolean enabled, long page, long size) {
+    public ApiResponse<PageResult<PhraseView>> list(String phrase, String category, Boolean enabled, long page, long size) {
         PageBounds bounds = PageBounds.of(page, size, MAXIMUM_PAGE_SIZE);
         Page<MeaninglessPhrase> result = mapper.selectPage(new Page<>(bounds.page(), bounds.size()),
                 Wrappers.<MeaninglessPhrase>lambdaQuery()
@@ -123,8 +126,7 @@ public class MeaninglessPhraseService {
                         .eq(category != null && !category.isBlank(), MeaninglessPhrase::getCategory, category)
                         .eq(enabled != null, MeaninglessPhrase::getEnabled, enabled)
                         .orderByDesc(MeaninglessPhrase::getPriority).orderByAsc(MeaninglessPhrase::getId));
-        return new PageResult<>(result.getCurrent(), result.getSize(), result.getTotal(),
-                result.getRecords().stream().map(this::view).toList());
+        return ApiResponse.page(result.convert(responseConverter::toView));
     }
 
     private MeaninglessPhrase require(long id) {
@@ -156,11 +158,6 @@ public class MeaninglessPhraseService {
         }
     }
 
-    private PhraseView view(MeaninglessPhrase entity) {
-        return new PhraseView(entity.getId(), entity.getPhrase(), entity.getCategory(),
-                Boolean.TRUE.equals(entity.getEnabled()), entity.getPriority(), entity.getRemark(),
-                entity.getCreateTime(), entity.getUpdateTime());
-    }
 
     /** 发布事务提交后刷新缓存所需的领域事件。 */
     private void changed() {

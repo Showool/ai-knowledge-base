@@ -11,6 +11,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
+import com.jason.ai.knowledgebase.model.response.PageResult;
 import com.jason.ai.knowledgebase.model.response.ChatResponses.CreateSessionResponse;
 import com.jason.ai.knowledgebase.model.response.ChatResponses.MessageView;
 import com.jason.ai.knowledgebase.model.response.ChatResponses.SessionView;
@@ -18,13 +20,11 @@ import com.jason.ai.knowledgebase.model.entity.ChatSession;
 import com.jason.ai.knowledgebase.model.entity.ConversationMessage;
 import com.jason.ai.knowledgebase.repository.mapper.ChatSessionMapper;
 import com.jason.ai.knowledgebase.repository.mapper.ConversationMessageMapper;
-import com.jason.ai.knowledgebase.common.api.PageResult;
 import com.jason.ai.knowledgebase.common.exception.AppException;
 import com.jason.ai.knowledgebase.common.exception.ErrorCode;
 import com.jason.ai.knowledgebase.common.util.PageBounds;
-import com.jason.ai.knowledgebase.common.util.UnicodeText;
 import com.jason.ai.knowledgebase.common.util.SnowflakeIdGenerator;
-import com.jason.ai.knowledgebase.common.util.JsonCodec;
+import com.jason.ai.knowledgebase.service.converter.ChatResponseConverter;
 
 import lombok.RequiredArgsConstructor;
 
@@ -36,7 +36,6 @@ import lombok.RequiredArgsConstructor;
 public class ChatSessionService {
 
     private static final String DEFAULT_TITLE = "新对话";
-    private static final int MESSAGE_PREVIEW_LENGTH = 80;
     private static final long MAXIMUM_PAGE_SIZE = 100;
 
     private final ChatSessionMapper sessionMapper;
@@ -44,36 +43,35 @@ public class ChatSessionService {
     private final SnowflakeIdGenerator idGenerator;
     private final ChatMemory chatMemory;
     private final ActiveRequestLookup activeRequests;
-    private final JsonCodec jsonCodec;
+    private final ChatResponseConverter responseConverter;
 
     /**
      * 创建属于指定用户的新会话。
      *
      * @param userId 用户 ID
-     * @return 新会话信息
+     * @return 包含新会话信息的成功响应
      */
-    public CreateSessionResponse create(long userId) {
+    public ApiResponse<CreateSessionResponse> create(long userId) {
         ChatSession session = new ChatSession();
         session.setId(idGenerator.nextId());
         session.setUserId(userId);
         session.setTitle(DEFAULT_TITLE);
         session.setDeleted(0);
         sessionMapper.insert(session);
-        return new CreateSessionResponse(session.getId(), session.getTitle(), session.getCreateTime());
+        return ApiResponse.success(responseConverter.toCreateResponse(session));
     }
 
     /**
      * 查询用户全部会话及最新消息预览。
      *
      * @param userId 用户 ID
-     * @return 按更新时间和 ID 倒序排列的会话
+     * @return 包含按更新时间和 ID 倒序排列会话的成功响应
      */
-    public List<SessionView> list(long userId) {
-        return sessionMapper.findSummaries(userId).stream()
-                .map(session -> new SessionView(session.getId(), session.getTitle(),
-                        UnicodeText.truncate(session.getLastMessagePreview(), MESSAGE_PREVIEW_LENGTH),
-                        session.getCreateTime(), session.getUpdateTime()))
+    public ApiResponse<List<SessionView>> list(long userId) {
+        List<SessionView> sessions = sessionMapper.findSummaries(userId).stream()
+                .map(responseConverter::toSessionView)
                 .toList();
+        return ApiResponse.success(sessions);
     }
 
     /**
@@ -83,10 +81,10 @@ public class ChatSessionService {
      * @param sessionId 会话 ID
      * @param page 页码
      * @param size 每页数量
-     * @return 消息分页
+     * @return 消息分页成功响应
      * @throws AppException 会话不存在或不属于当前用户时抛出
      */
-    public PageResult<MessageView> messages(long userId, long sessionId, long page, long size) {
+    public ApiResponse<PageResult<MessageView>> messages(long userId, long sessionId, long page, long size) {
         requireOwned(userId, sessionId);
         PageBounds bounds = PageBounds.of(page, size, MAXIMUM_PAGE_SIZE);
         Page<ConversationMessage> result = messageMapper.selectPage(new Page<>(bounds.page(), bounds.size()),
@@ -94,8 +92,7 @@ public class ChatSessionService {
                         .eq(ConversationMessage::getSessionId, sessionId)
                         .eq(ConversationMessage::getUserId, userId)
                         .orderByAsc(ConversationMessage::getId));
-        List<MessageView> views = result.getRecords().stream().map(this::toView).toList();
-        return new PageResult<>(result.getCurrent(), result.getSize(), result.getTotal(), views);
+        return ApiResponse.page(result.convert(responseConverter::toMessageView));
     }
 
     /**
@@ -142,9 +139,4 @@ public class ChatSessionService {
         return session;
     }
 
-    private MessageView toView(ConversationMessage message) {
-        return new MessageView(message.getId(), message.getRequestId(), message.getRole(), message.getContent(),
-                message.getStatus(), jsonCodec.readObject(message.getMetadata()), message.getCreateTime(),
-                message.getUpdateTime());
-    }
 }

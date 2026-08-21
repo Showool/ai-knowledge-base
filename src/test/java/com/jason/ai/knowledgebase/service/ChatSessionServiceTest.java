@@ -15,12 +15,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.memory.ChatMemory;
 
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
 import com.jason.ai.knowledgebase.model.response.ChatResponses.SessionView;
 import com.jason.ai.knowledgebase.repository.mapper.ChatSessionMapper;
 import com.jason.ai.knowledgebase.repository.mapper.ConversationMessageMapper;
 import com.jason.ai.knowledgebase.repository.projection.ChatSessionSummary;
 import com.jason.ai.knowledgebase.common.util.SnowflakeIdGenerator;
-import com.jason.ai.knowledgebase.common.util.JsonCodec;
+import com.jason.ai.knowledgebase.service.converter.ChatResponseConverter;
 
 @ExtendWith(MockitoExtension.class)
 class ChatSessionServiceTest {
@@ -36,7 +37,7 @@ class ChatSessionServiceTest {
     @Mock
     private ActiveRequestLookup activeRequests;
     @Mock
-    private JsonCodec jsonCodec;
+    private ChatResponseConverter responseConverter;
     @InjectMocks
     private ChatSessionService service;
 
@@ -44,12 +45,19 @@ class ChatSessionServiceTest {
     void listReturnsEverySessionWithLatestMessagePreview() {
         ChatSessionSummary first = summary(101L, "最近会话", "最近消息", Instant.parse("2026-08-18T02:00:00Z"));
         ChatSessionSummary second = summary(100L, "较早会话", null, Instant.parse("2026-08-18T01:00:00Z"));
+        SessionView firstView = new SessionView(101L, "最近会话", "最近消息",
+                first.getCreateTime(), first.getUpdateTime());
+        SessionView secondView = new SessionView(100L, "较早会话", null,
+                second.getCreateTime(), second.getUpdateTime());
         when(sessionMapper.findSummaries(7L)).thenReturn(List.of(first, second));
+        when(responseConverter.toSessionView(first)).thenReturn(firstView);
+        when(responseConverter.toSessionView(second)).thenReturn(secondView);
 
-        List<SessionView> result = service.list(7L);
+        ApiResponse<List<SessionView>> response = service.list(7L);
 
-        assertThat(result).extracting(SessionView::id).containsExactly(101L, 100L);
-        assertThat(result).extracting(SessionView::lastMessagePreview).containsExactly("最近消息", null);
+        assertThat(response.data()).isNotNull();
+        assertThat(response.data()).extracting(SessionView::id).containsExactly(101L, 100L);
+        assertThat(response.data()).extracting(SessionView::lastMessagePreview).containsExactly("最近消息", null);
         verify(sessionMapper).findSummaries(7L);
         verifyNoInteractions(messageMapper);
     }

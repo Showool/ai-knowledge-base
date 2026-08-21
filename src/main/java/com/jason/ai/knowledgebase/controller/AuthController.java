@@ -5,10 +5,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.jason.ai.knowledgebase.common.api.ApiResponse;
 import com.jason.ai.knowledgebase.model.request.AuthRequests.LoginRequest;
 import com.jason.ai.knowledgebase.model.request.AuthRequests.RefreshRequest;
 import com.jason.ai.knowledgebase.model.request.AuthRequests.RegisterRequest;
+import com.jason.ai.knowledgebase.model.response.ApiResponse;
 import com.jason.ai.knowledgebase.model.response.AuthResponses.TokenResponse;
 import com.jason.ai.knowledgebase.model.response.AuthResponses.UserView;
 import com.jason.ai.knowledgebase.security.SecurityUtils;
@@ -33,7 +33,7 @@ public class AuthController {
      */
     @PostMapping("/register")
     public ApiResponse<UserView> register(@Valid @RequestBody RegisterRequest request) {
-        return ApiResponse.success(service.register(request.username(), request.password()));
+        return service.register(request.username(), request.password());
     }
 
     /**
@@ -44,7 +44,7 @@ public class AuthController {
      */
     @PostMapping("/login")
     public ApiResponse<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.success(service.login(request.username(), request.password()));
+        return service.login(request.username(), request.password());
     }
 
     /**
@@ -55,7 +55,7 @@ public class AuthController {
      */
     @PostMapping("/refresh")
     public ApiResponse<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
-        return ApiResponse.success(service.refresh(request.refreshToken()));
+        return service.refresh(request.refreshToken());
     }
 
     /**
